@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <title>JS Bin</title>
+</head>
+<body>
+  <script type="text/javascript">
+    function TodoList(){
+      this.data = [];
+    }
+
+    TodoList.prototype.addTask = function(task){
+      this.data.push(task);
+    }
+
+    TodoList.prototype.completeTask = function(task){
+      var index = 0;
+      for(var i = 0; i< this.data; i++){
+        if(this.data[i].title === task){
+          index = i;
+        }
+      }
+      this.data.splice(index, 1);
+    }
+
+
+    TodoList.prototype.showTask = function(){
+      for(var i = 0; i<this.data.length;i=i+1){
+        console.log(this.data[i].title, this.data[i].date)
+      }
+    }
+
+    var todo = new TodoList();
+    todo.addTask({title:"music", date : "1/2"});
+    todo.addTask({title:"math", date : "1/3"});
+    todo.addTask({title:"korean", date : "1/22"});
+    todo.addTask({title:"history", date : "1/31"});
+    todo.completeTask("music");
+    todo.showTask();
+
+  </script>
+
+</body>
+</html>
