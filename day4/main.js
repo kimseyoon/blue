@@ -1,365 +1,312 @@
+var ns = ns || {};
+
+ns.view = {};
+ns.view.headerObj = {
+  init : function(){
+    this.registerEvent();
+  },
+
+  registerEvent : function(){
+    this.$header.addEventListener("click", function(e){
+      var target = e.target;
+      if(target.closest(".btnMove")){
+        this.movePrevAndNextContent(target);
+      }
+    }.bind(this))
+  },
+
+  movePrevAndNextContent : function(target){
+    if(target.closest(".left")){
+      ns.dispatcher.emit({"type" : "movePrevAndNextContent"}, ["prev"]);
+    }else{
+      ns.dispatcher.emit({"type" : "movePrevAndNextContent"}, ["next"]);
+    }
+  }
+
+};
+ns.view.Header = function(){
+  return {
+    $header : ns.util.$("header")
+  }
+}
+
+ns.view.lnbObj = {
+  init : function(){
+    this.registerEvent();
+  },
+
+  registerEvent : function(){
+    this.$lnb.addEventListener("click", function(e){
+      var target = e.target;
+      if(target.tagName === "LI"){
+        this.moveClickedList(target);
+      }
+    }.bind(this));
+  },
+
+  moveClickedList : function(target){
+    var index = ns.util.getChildOrder(target);
+    ns.dispatcher.emit({"type" : "moveClickedList"}, [index]);
+  },
+
+  addSelectClass : function(index){
+    var allLi = this.$lnb.children;
+    for(var i = 0; i < allLi.length; i = i + 1){
+      allLi[i].classList.remove("select");
+    }
+    allLi[index].classList.add("select");
+  },
+
+  showCurrentPage : function(index){
+    var currentPage = ns.util.$(".currentPage");
+    currentPage.innerHTML = index + 1;
+  },
+
+  //총페이지 넘버 출력
+  showTotalPage : function(length){
+    var totalPage = ns.util.$(".totalPage");
+    totalPage.innerHTML = length;
+  },
+
+  renderView : function(data){
+    var ulHtml = document.querySelector("#ulTemplate").innerHTML,
+        result = "";
+    for(var i = 0; i < data.length; i = i + 1){
+      if(i === 0){
+        result += "<li class='select'>"+data[i]+"</li>";
+        continue;
+      }
+      result += "<li>"+data[i]+"</li>";
+    }
+    ulHtml = ulHtml.replace("{newsTitleList}", result);
+    this.$lnb.innerHTML = ulHtml;
+  }
+
+};
+ns.view.Lnb = function(){
+  return {
+    $lnb : ns.util.$(".mainArea nav ul")
+  }
+}
+
+ns.view.contentObj = {
+  init :function(){
+    this.registerEvent();
+  },
+
+  registerEvent : function(){
+    this.$content.addEventListener("click", function(e){
+      var target = e.target;
+      if(target.classList.contains("btnDelNews")){
+        ns.dispatcher.emit({"type" : "cancelSubscription"});
+      }
+    })
+  },
+
+  renderView : function(data){
+    var newsHtml = document.querySelector("#newsTemplate").innerHTML,
+        str = "";
+
+    if(data === undefined){
+      this.$content.innerHTML = "";
+      return;
+    }
+
+    newsHtml = newsHtml.replace("{title}", data.title).replace("{imgurl}", data.imgurl);
+    for(var i = 0; i < data.newslist.length; i = i + 1){
+      str += "<li>"+data.newslist[i]+"</li>"
+    }
+    newsHtml = newsHtml.replace("{newsList}", str);
+    this.$content.innerHTML = newsHtml;
+  }
+};
+
+ns.view.Content = function(){
+  return {
+    $content : ns.util.$(".mainArea .content")
+  }
+}
+
+ns.modelObj = {
+  setListData : function(data){
+    this.newsList = data;
+  },
+
+  setCurrentContentIndex : function(index){
+    this.currentContentIndex = index;
+  },
+
+  getCurrentContentIndex : function(){
+    return this.currentContentIndex;
+  },
+
+  getAllDataLength : function(){
+    return this.newsList.length;
+  },
+
+  getAllData : function(){
+    return this.newsList;
+  },
+
+  getTargetData : function(index){
+    return this.newsList[index];
+  },
+
+  getAllTitleList : function(){
+    var titleArr = [];
+    this.newsList.forEach(function(item){
+      titleArr.push(item.title);
+    })
+    return titleArr;
+  },
+
 /*
-고민사항
-1. 모델을 어떻게 하면 잘 사용할 수 있을까?
-   - 함수를 호출할때마다 모델을 넣어줘야한다. 한번에 뷰객체를 만들때 프로퍼티값으로 넣어두면 좋을까?
-2. 뷰의 이벤트 관련된 함수는 따로 한번에 묶어서 관리하고싶다.
-
-3. 생성자 밖에서 호출하기 고민해보자 (해결)
+  getInitViewData : function(index){
+    var titleArr = this.getAllTitleList();
+    var targetData = this.getTargetData(index);
+    ns.dispatcher.emit({"type" : "lnbContentViewRender"}, [titleArr, targetData]);
+  },
 */
+  removeData : function(index){
+    this.newsList.splice(index, 1);
+  }
+};
 
+ns.Model = function(){
+  return{
+    newsList : [],
+    currentContentIndex : 0
+  }
+}
 
+ns.controllerObj = {
+  init : function(){
+    ns.dispatcher.emit({"type" : "initView"});
+  },
 
-  var headerObj = {
-    // 이전, 다음 콘텐츠 이동
-    moveNextAndPrevCotent : function(model){
-      var btnMove = document.querySelector(".btnMove");
-      btnMove.addEventListener("click", function(e){
-        var target = e.target,
-            titleData = model.getTitleData(),
-            newsName = utility.$(".content .newsName").innerHTML,
-            currentIndex = titleData.indexOf(newsName);
+  chain : function(){
+    ns.dispatcher.register({
+      "lnbContentViewRender" : function(titleArr, allData){
+        this.lnbView.showCurrentPage(this.model.getCurrentContentIndex());
+        this.lnbView.showTotalPage(this.model.getAllDataLength());
+        this.lnbView.renderView(titleArr);
+        this.contentView.renderView(allData);
+      }.bind(this),
 
-        if(titleData.length === 0){
+      "movePrevAndNextContent" : function(direction){
+        var contentIndex = this.model.getCurrentContentIndex();
+        var titleDataLength = this.model.getAllTitleList().length;
+        var targetData = "";
+
+        if(titleDataLength === 0){
           return;
         }
 
-        if(target.closest(".left")){
-          currentIndex--;
-          if(currentIndex === -1){
-            currentIndex = titleData.length - 1;
+        if(direction === "prev"){
+          contentIndex--;
+          if(contentIndex === -1){
+            contentIndex = titleDataLength - 1;
           }
         }else{
-          currentIndex++;
-          if(currentIndex >= titleData.length){
-            currentIndex = 0;
+          contentIndex++;
+          if(contentIndex >= titleDataLength){
+            contentIndex = 0;
           }
         }
+        targetData = this.model.getTargetData(contentIndex);
+        this.model.setCurrentContentIndex(contentIndex);
+        this.lnbView.showCurrentPage(contentIndex);
+        this.lnbView.addSelectClass(contentIndex);
+        this.contentView.renderView(targetData);
+      }.bind(this),
 
-        this.publish({data : model.getAllData(), index : currentIndex}, "content_showContent");
-        this.publish(currentIndex, "lnb_addSelectClass");
-        this.publish(currentIndex, "lnb_showCurrentPage");
+      "cancelSubscription" : function(){
+        var contentIndex = this.model.getCurrentContentIndex();
+        this.model.removeData(contentIndex);
+        this.model.setCurrentContentIndex(0);
+        //this.model.getInitViewData(0);
+        ns.dispatcher.emit({"type" : "lnbContentViewRender"}, [this.model.getAllTitleList(), this.model.getTargetData(0)]);
+      }.bind(this),
 
-        //dispatcher.register("showContent", {data : model.getAllData(), index : currentIndex});
-        //dispatcher.register("addSelectClass", currentIndex);
-        //dispatcher.register("showCurrentPage", currentIndex);
+      "moveClickedList" : function(index){
+        var targetData = this.model.getTargetData(index);
+        this.model.setCurrentContentIndex(index);
+        this.lnbView.showCurrentPage(this.model.getCurrentContentIndex());
+        this.lnbView.addSelectClass(index);
+        this.contentView.renderView(targetData);
+      }.bind(this),
 
-        //content.showContent({data : model.getAllData(), index : currentIndex});
-        //lnb.addSelectClass(currentIndex);
-        //lnb.showCurrentPage(currentIndex);
-      }.bind(this))
-    }
-  /*
-    addEvent : function(){
-      var btnMove = document.querySelector(".btnMove");
-      btnMove.addEventListener("click", this.moveNextAndPrevCotent.bind(null, model));
-    }
-  */
+      "initView" : function(){
+        this.headerView.init();
+        this.lnbView.init();
+        this.contentView.init();
+        //this.model.getInitViewData(this.model.getCurrentContentIndex());
+        ns.dispatcher.emit({"type" : "lnbContentViewRender"}, [this.model.getAllTitleList(), this.model.getTargetData(0)]);
+      }.bind(this)
+    })
   }
+};
 
-  function Header(){
-    return {};
+ns.Controller = function(obj){
+  return {
+    headerView : obj.headerView,
+    lnbView : obj.lnbView,
+    contentView : obj.contentView,
+    model : obj.model
   }
+}
 
-  ///////////////////////////////////////////////////////////////
+ns.util = {
+  $ : function(ele){
+    return document.querySelector(ele);
+  },
 
-  var lnbObj = {
-    //lnb 매체 리스트 생성
-    showList : function(data){
-      var i,
-          ulHtml = reuseObj.ulTemplate.innerHTML,
-          result = "";
-      for(i = 0; i < data.length; i = i + 1){
-        if(i === 0){
-          result += "<li class='select'>"+data[i]+"</li>";
-          continue;
-        }
-        result += "<li>"+data[i]+"</li>";
-      }
-      ulHtml = ulHtml.replace("{newsTitleList}", result);
-      reuseObj.ul.innerHTML = ulHtml;
-      //setNewsTemplate({index : 0, data : data})
-    },
-    //lnb 매체 리스트 클릭시 콘텐츠 변경
-    moveClickedList : function(model){
-      reuseObj.ul.addEventListener("click", function(e){
-        var target = e.target,
-            titleData = model.getTitleData(),
-            index = titleData.indexOf(target.innerHTML);
-        //content.showContent({data : model.getAllData(), index : index})
-        this.publish({data : model.getAllData(), index : index}, "content_showContent");
-        this.addSelectClass(index);
-        this.showCurrentPage(index);
-      }.bind(this))
-    },
+  //ajax호출하기
+  runAjax : function(func, method, url){
+    var oReq = new XMLHttpRequest();
+    oReq.addEventListener("load", func);
+    oReq.open(method, url);
+    oReq.send();
+  },
 
-    addSelectClass : function(index){
-      var allLi = reuseObj.ul.children;
-      for(var i = 0; i < allLi.length; i = i + 1){
-        allLi[i].classList.remove("select");
-      }
-      allLi[index].classList.add("select");
-    },
-
-    //현재페이지 넘버 출력
-    showCurrentPage : function(index){
-      var currentPage = utility.$(".currentPage");
-      currentPage.innerHTML = index + 1;
-    },
-
-    //총페이지 넘버 출력
-    showTotalPage : function(data){
-      var totalPage = utility.$(".totalPage");
-      totalPage.innerHTML = data.length;
-    }
+  getChildOrder: function(elChild) {
+    const elParent = elChild.parentNode;
+    let nIndex = Array.prototype.indexOf.call(elParent.children, elChild);
+    return nIndex;
   }
+};
 
-  function Lnb(){
-    return {};
+ns.dispatcher = {
+  register: function(fnlist) {
+    this.fnlist = fnlist;
+  },
+  emit: function(o, data) {
+    this.fnlist[o.type].apply(null, data);
   }
-
-  ///////////////////////////////////////////////////////////////
-
-  var contentObj = {
-    // 콘텐츠 보여주기
-    showContent : function(obj){
-      var newsHtml = document.querySelector("#newsTemplate").innerHTML,
-          str = "";
-      if(obj.data.length === 0){
-        reuseObj.content.innerHTML = "";
-        return;
-      }
-      newsHtml = newsHtml.replace("{title}", obj.data[obj.index].title).replace("{imgurl}", obj.data[obj.index].imgurl);
-      for(var i = 0; i < obj.data[obj.index].newslist.length; i = i + 1){
-        str += "<li>"+obj.data[obj.index].newslist[i]+"</li>"
-      }
-      newsHtml = newsHtml.replace("{newsList}", str);
-      reuseObj.content.innerHTML = newsHtml;
-    },
-
-    //구독취소하기
-    cancelSubscription : function(model){
-      reuseObj.content.addEventListener("click", function(e){
-        var target = e.target,
-            titleData = model.getTitleData(),
-            newsName = utility.$(".content .newsName").innerHTML,
-            currentIndex = titleData.indexOf(newsName);
-        if(target.classList.contains("btnDelNews")){
-          model.removeData(currentIndex);
-          this.showContent({data : model.getAllData(), index : 0})
-
-          this.publish(model.getTitleData(), "lnb_showList");
-          this.publish(0, "lnb_showCurrentPage");
-          this.publish(model.getTitleData(), "lnb_showTotalPage");
-  /*
-          lnb.showList(model.getTitleData());
-          lnb.showCurrentPage(0);
-          lnb.showTotalPage(model.getTitleData());
-  */
-        }
-      }.bind(this))
-    }
-  }
-
-  function Content(){
-    return{}
-  }
-
-  ///////////////////////////////////////////////////////////////
-
-  var controllerObj = {
-  // 에이작스 호출
-    init : function(){
-      utility.runAjax(this.getData.bind(this), this.url);
-    },
-  // 에이작스 콜백함수, 받아온 제이슨데이터를 모델에 저장
-    getData : function(e){
-      var data = JSON.parse(e.target.responseText);
-
-      var newsModel = Model(data);
-      Object.setPrototypeOf(newsModel, modelObj);
-
-      header.data = newsModel;
-      this.render(newsModel);
-    },
-  // 처음 로드되었을때 각 화면을 뿌려주는 함수
-    render : function(model){
-      fire();
-      content.showContent({data : model.getAllData(), index : 0});
-      content.cancelSubscription(model);
-
-      lnb.showList(model.getTitleData());
-      lnb.moveClickedList(model);
-
-      lnb.showCurrentPage(0);
-      lnb.showTotalPage(model.getAllData());
-
-      header.moveNextAndPrevCotent(model);
-    }
-  }
-
-  function Controller(url){
-    return {
-      url
-    }
-  }
-
-  ///////////////////////////////////////////////////////////////
-  var fire = function(){
-    utility.makePublisher(content);
-    content.subscribe(lnb.showList, "lnb_showList");
-    content.subscribe(lnb.showCurrentPage, "lnb_showCurrentPage");
-    content.subscribe(lnb.showTotalPage, "lnb_showTotalPage");
-
-    utility.makePublisher(header);
-    header.subscribe(content.showContent, "content_showContent");
-    header.subscribe(lnb.addSelectClass, "lnb_addSelectClass");
-    header.subscribe(lnb.showCurrentPage, "lnb_showCurrentPage");
-
-    utility.makePublisher(lnb);
-    lnb.subscribe(content.showContent, "content_showContent");
-  }
-  ///////////////////////////////////////////////////////////////
-
-  var modelObj = {
-    setData : function(data){
-      this.data = data;
-    },
-    //모든 데이터 가져오기
-    getAllData : function(){
-      return this.data;
-    },
-    //타이틀만 가져오기
-    getTitleData : function(){
-      var titleArr = [];
-      this.data.forEach(function(item){
-        titleArr.push(item.title);
-      })
-      return titleArr;
-    },
-    //데이터 삭제하기
-    removeData : function(index){
-      this.data.splice(index, 1);
-    }
-  }
-
-  function Model(data){
-    return{
-      data : data
-    }
-  }
-  ///////////////////////////////////////////////////////////////
-  // observer pattern
-  // 패턴적용 이유 : 객체간의 결합도를 낮추기 위해서
-
-  var publisher = {
-    subscribers : {
-      any : []
-    },
-    subscribe : function(fn, type){
-      type = type || "any";
-      if(typeof this.subscribers[type] === "undefined"){
-        this.subscribers[type] = [];
-      }
-      this.subscribers[type].push(fn);
-    },
-    unsubscribe : function(fn, type){
-      this.visitSubscribers("unsubscribe", fn, type);
-    },
-    publish : function(publication, type){
-      this.visitSubscribers("publish", publication, type);
-    },
-    visitSubscribers : function(action, arg, type){
-      //debugger;
-      var pubtype = type || "any",
-          subscribers = this.subscribers[pubtype];
-          var i,
-          max = subscribers.length;
-      for(i = 0; i < max; i += 1){
-        if(action === "publish"){
-          subscribers[i](arg);
-        }else{
-          if(subscribers[i] === arg){
-            subscribers.splice(i, 1);
-          }
-        }
-      }
-    }
-  }
-
-
-  ///////////////////////////////////////////////////////////////
-  //dispachter
-  /*
-  var dispatcher = {
-    register : function(func, arg){
-      switch (func){
-        case "showContent" : content.showContent(arg);
-          break;
-        case "addSelectClass" : lnb.addSelectClass(arg);
-          break;
-        case "showCurrentPage" : lnb.showCurrentPage(arg);
-          break;
-        default:
-      }
-    }
-  }
-  */
-
-  ///////////////////////////////////////////////////////////////
-  // 재사용되는 엘리멘트 정의
-  var reuseObj = {
-    content : document.querySelector(".content"),
-    ulTemplate : document.querySelector("#ulTemplate"),
-    ul : document.querySelector(".mainArea > nav > ul"),
-    page : document.querySelector(".page")
-  }
-
-  ///////////////////////////////////////////////////////////////
-
-  var utility = {
-    $ : function(ele){
-      return document.querySelector(ele);
-    },
-
-    //ajax호출하기
-    runAjax : function(func, url){
-      var oReq = new XMLHttpRequest();
-      oReq.addEventListener("load", func);
-      oReq.open("GET", url);
-      oReq.send();
-    },
-
-    makePublisher : function(o){
-      var i;
-      for(i in publisher){
-        if(publisher.hasOwnProperty(i) && typeof publisher[i] === "function"){
-          o[i] = publisher[i];
-        }
-      }
-      o.subscribers = {any:[]};
-    }
-  }
-
-  ///////////////////////////////////////////////////////////////
-
-  var news = null,
-      content = null,
-      lnb = null,
-      header = null;
-
+}
 
 document.addEventListener("DOMContentLoaded", function(){
-    news = Controller("newslist.json");
-    Object.setPrototypeOf(news, controllerObj)
+  var model = ns.Model();
+  Object.setPrototypeOf(model, ns.modelObj);
 
-    content = Content();
-    Object.setPrototypeOf(content, contentObj);
+  var headerView = ns.view.Header();
+  Object.setPrototypeOf(headerView, ns.view.headerObj);
 
-    lnb = Lnb();
-    Object.setPrototypeOf(lnb, lnbObj);
+  var lnbView = ns.view.Lnb();
+  Object.setPrototypeOf(lnbView, ns.view.lnbObj);
 
-    header = Header();
-    Object.setPrototypeOf(header, headerObj);
+  var contentView = ns.view.Content();
+  Object.setPrototypeOf(contentView, ns.view.contentObj);
 
-    news.init();
+  var control = ns.Controller({
+    headerView : headerView, lnbView : lnbView, contentView : contentView, model : model
+  });
+  Object.setPrototypeOf(control, ns.controllerObj);
+
+  control.chain();
+  ns.util.runAjax(function(e){
+    var data = JSON.parse(e.target.responseText);
+    model.setListData(data);
+    control.init();
+  }, "GET", "newslist.json")
 });
